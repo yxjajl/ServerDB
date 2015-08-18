@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+	<redis>
+		<host>127.0.0.1</host>
+		<port>6379</port>
+		<password></password>
+		<maxTotal>30</maxTotal>
+		<maxIdle>100</maxIdle>
+		<maxWait>10000</maxWait>
+		<testOnBorrow>false</testOnBorrow>
+	</redis>
+	
+	<db>
+		<url>jdbc:mysql://10.1.0.3:3306/wenda?useUnicode=true&amp;characterEncoding=UTF-8</url>
+		<username>wenda</username>
+		<password>wenda</password>
+	</db>
+	
+	<tables>
+		<table schema="dzq_job" name="company" primarykey="company_id" >`company_id`, `name`, `short_name`, `city`, `address`</table>
+		<table schema="dzq_job" name="city" primarykey="id">`id`, `name`</table>
+	</tables>
+</project>
