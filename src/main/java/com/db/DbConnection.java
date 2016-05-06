@@ -2,6 +2,7 @@ package com.db;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -10,6 +11,8 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Properties;
+import java.util.StringJoiner;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +33,7 @@ public class DbConnection {
 		String username = configProject.getConfigDB().getUsername();
 		String password = configProject.getConfigDB().getPassword();
 
-		Connection conn = getConnection(url, username, password);
+		Connection conn = getConnection("com.mysql.jdbc.Driver", url, username, password);
 		try {
 			for (ConfigTable ct : configProject.getTables()) {
 				try {
@@ -53,10 +56,17 @@ public class DbConnection {
 		}
 	}
 
-	public static Connection getConnection(String url, String username, String password) {
+	public static Connection getConnection(String driver, String url, String username, String password) {
 		try {
-			Class.forName("com.mysql.jdbc.Driver");
-			Connection con = DriverManager.getConnection(url, username, password);
+			Properties props = new Properties();
+		    props.put("remarksReporting","true");//注意这里 oracle加这个才能取到字段注释
+		    
+		    props.put("user", username);
+		    props.put("password", password);
+		    
+			Class.forName(driver);
+			//Connection con = DriverManager.getConnection(url, username, password);
+			Connection con = DriverManager.getConnection(url, props);
 			return con;
 		} catch (ClassNotFoundException cfe) {
 			LOGGER.error("数据库连接失败！{} ", cfe);
@@ -98,17 +108,81 @@ public class DbConnection {
 		return null;
 	}
 
-	public static void main(String[] args) throws Exception {
-		String url = "jdbc:mysql://10.1.0.3:3306/wenda?useUnicode=true&characterEncoding=UTF-8";
-		String username = "wenda";
-		String password = "wenda";
-		Connection conn = DbConnection.getConnection(url, username, password);
-
-		List<String> td = loadTable(conn, "`dzq_job`", "`company`", "company_id,name");
-		for (String str : td) {
-			CompanyVO cv = JSON.parseObject(str, CompanyVO.class);
-			System.out.println("str = " + cv.getCompany_id() + "," + cv.getName());
+	public static String getColumns(Connection conn, String tableName) throws Exception {
+		StringJoiner sj = new StringJoiner(",");
+		String sql = "select * from " + tableName + " where rownum <=1";
+		Statement stmt = conn.createStatement();
+		ResultSet rs = stmt.executeQuery(sql);
+		ResultSetMetaData rsmd = rs.getMetaData();
+		for (int m = 1; m <= rsmd.getColumnCount(); m++) {
+			//			System.out.println(rsmd.getColumnName(m) + "," + rsmd.getColumnLabel(m));
+			sj.add(rsmd.getColumnName(m));
 		}
+		return sj.toString();
+	}
+
+	public static void copyData(Connection srcconn, Connection dirconn, String tableName) throws Exception {
+		String sql = "select * from " + tableName + " ";
+		Statement stmt = srcconn.createStatement();
+
+		ResultSet rs = stmt.executeQuery(sql);
+		ResultSetMetaData rsmd = rs.getMetaData();
+
+		dirconn.setAutoCommit(false);
+		StringJoiner sj = new StringJoiner(",");
+		for (int m = 1; m <= rsmd.getColumnCount(); m++) {
+			sj.add("?");
+		}
+		PreparedStatement pstmt = dirconn.prepareStatement("insert into " + tableName + " values (" + sj.toString() + ")");
+		pstmt.clearBatch();
+		for (; rs.next();) {
+			for (int m = 1; m <= rsmd.getColumnCount(); m++) {
+				//System.out.println(m);
+				pstmt.setObject(m, rs.getObject(m));
+
+			}
+			pstmt.addBatch();
+		}
+		pstmt.executeBatch();
+		dirconn.commit();
+	}
+
+	public static void main(String[] args) throws Exception {
+		//		String url = "jdbc:mysql://10.1.0.3:3306/wenda?useUnicode=true&characterEncoding=UTF-8";
+		//		String username = "wenda";
+		//		String password = "wenda";
+		//		Connection conn = DbConnection.getConnection("com.mysql.jdbc.Driver",url, username, password);
+		//
+		//		List<String> td = loadTable(conn, "`dzq_job`", "`company`", "company_id,name");
+		//		for (String str : td) {
+		//			CompanyVO cv = JSON.parseObject(str, CompanyVO.class);
+		//			System.out.println("str = " + cv.getCompany_id() + "," + cv.getName());
+		//		}
+		//		CopyTable();
+	}
+
+	public static void CopyTable() {
+		Connection srcConn = DbConnection.getConnection("oracle.jdbc.driver.OracleDriver", "jdbc:oracle:thin:@10.140.161.12:1521:ORCL", "ECSAPP2", "ECSAPP2");
+		//		System.out.println(getColumns(srcConnection, "GE_USER"));
+		Connection dirConn = DbConnection.getConnection("oracle.jdbc.driver.OracleDriver", "jdbc:oracle:thin:@10.140.161.12:1521:ORCL", "epaydev",
+				"Epaydev123");
+		//		for (String tt : getTableList()) {
+		//			try {
+		//				copyData(srcConn, dirConn, tt);
+		//			} catch (Exception e) {
+		//				e.printStackTrace();
+		//			}
+		//		}
+	}
+
+	public static String[] getTableList() {
+		return new String[] {
+				//				"ge_activiti_variable", "ge_area", "ge_company", "ge_daily_record", "ge_department", "ge_dict_data", "ge_dict_type",
+				//				"ge_permission", "ge_permission_resources", "ge_resources", "ge_resources_icon", "ge_role", "ge_role_permission", "ge_sale_area",
+				//				"ge_sale_area_def", "ge_sale_area_free", "ge_user", "ge_usergroup", "ge_usergroup_role", "ge_user_dep", "ge_user_role", "ge_user_usergroup"
+				//				"GE_AREA_DATA"
+
+		};
 	}
 }
 
